@@ -2,114 +2,117 @@
 
 [![CI](https://github.com/Wizard89cl/dsmon/actions/workflows/ci.yml/badge.svg)](https://github.com/Wizard89cl/dsmon/actions/workflows/ci.yml)
 
-Monitor de recursos para **Linux** de **cero dependencias externas en el núcleo** (Python 3 stdlib), pensado para dos escenarios:
+**English** | [Español](README.es.md)
 
-1. **Servidores *headless* (reemplazo moderno de `nmon` sin Excel):** demonio ligero que graba métricas en CSV diarios con compresión y retención automática, más un analizador que genera un reporte **HTML interactivo autocontenido**.
-2. **Escritorio Linux (GTK3):** widget flotante minimalista (~0.1% CPU) anclado al escritorio.
+A **zero-external-dependency** Linux resource monitor (Python 3 stdlib core) built for two main workflows:
 
-> **Alcance soportado:** Linux (`x86_64` y `ARM64`) en servidores físicos (Intel Xeon, AMD EPYC/Ryzen), hosts KVM/Proxmox, VMs (VMware, KVM, Hyper-V, Cloud) y escritorios/laptops Linux. *(No aplica a AIX, IBM i/AS400 ni VMware ESXi VMkernel).*
+1. **Headless servers (a modern `nmon` replacement without Excel):** a lightweight daemon that records daily CSV metrics with automatic compression and retention, paired with an analyzer that generates a **self-contained interactive HTML report**.
+2. **Linux desktop (GTK3):** a minimal floating widget (~0.1% CPU) pinned to the desktop.
 
----
-
-## Arquitectura
-
-* **`dsmon_core.py`** — Núcleo puro en Python stdlib (`/proc` y `/sys`, sin GTK). Incluye `SystemStats`, `CsvRecorder` (compresión `.csv.gz` y retención automática) y `load_settings()`.
-* **`dsmon.py`** — Punto de entrada unificado:
-  * Sin flags: lanza el widget **GTK3** de escritorio.
-  * `--headless`: ejecuta el grabador continuo para servidores sin entorno gráfico.
-  * `--snapshot [--json]`: imprime una lectura única del sistema (ideal para scripts o agentes).
-  * `--report`: genera el reporte HTML desde los logs CSV / CSV.gz.
-* **`dsmon_analyzer.py`** — Analizador bajo demanda (`0 MB` en reposo). Lee `.csv` y `.csv.gz`, cruza errores/warnings de `journalctl` y genera un HTML autocontenido con pestañas (*CPU & Kernel*, *Memoria & Swap*, *Disco I/O & Red*, *GPU*, *Procesos & Logs*), **Importar CSV/GZ** directo en el navegador, **Volver a local** y **Exportar PDF** ejecutivo (`@media print`).
+> **Supported scope:** Linux (`x86_64` and `ARM64`) on bare-metal servers (Intel Xeon, AMD EPYC/Ryzen), KVM/Proxmox hosts, VMs (VMware, KVM, Hyper-V, Cloud), and Linux desktops/laptops. *(Not intended for AIX, IBM i/AS400, or VMware ESXi VMkernel.)*
+>
+> **Note:** The HTML report UI and desktop widget are currently in Spanish; full `en`/`es` multi-language support (i18n) is on the roadmap.
 
 ---
 
-## Métricas capturadas
+## Architecture
 
-* **CPU & Kernel:** CPU total, desglose `nmon` (`user`, `sys`, `iowait`, `steal` para VMs), temperaturas **multi-socket** (`/sys/class/thermal` + `hwmon` `coretemp`/`k10temp`/`zenpower`), *context switches* (`ctxt/s`), interrupciones (`intr/s`), *load average* y `hostname`.
-* **Memoria & Swap:** RAM usada/total, Swap y paginación activa (`pswpin/s`, `pswpout/s` desde `/proc/vmstat`).
-* **Disco:** Uso del montaje configurado (con degradación segura si falta un montaje) + tráfico I/O físico real (`disk_read_kbps`, `disk_write_kbps`, `disk_iops` desde `/proc/diskstats`, filtrando particiones y `loop`).
-* **Red:** Tasas `RX` / `TX` (`/proc/net/dev`), excluyendo por defecto (`--iface auto`) *loopback*, *bridges* virtuales (`docker*`, `veth*`, `br-*`, `virbr*`), esclavas de *bonding* (`bond*`/`team*`) y subinterfaces VLAN para evitar doble conteo.
-* **Procesos:** Top CPU y Top RAM leyendo `/proc/<pid>/stat` sin lanzar subprocesos.
-* **Multi-GPU (NVIDIA y AMD, incluso mezcladas):**
-  * NVIDIA vía `nvidia-smi` (soporta múltiples GPUs y maneja campos `[N/A]`).
-  * AMD vía `/sys/class/drm/card*/device` (`amdgpu`, sin dependencias externas).
-  * Respeta suspensión `D3cold` por dispositivo para no despertar GPUs en reposo.
-* **Batería (laptops):** Estado y porcentaje (`/sys/class/power_supply`).
-
-### Capturas (Benchmark Qwen3.5-9B)).
-
-<img width="1922" height="1000" alt="Captura desde 2026-11-25 18-54-14" src="https://github.com/user-attachments/assets/c46ad83b-5af5-4a56-bb91-3911a159591b" />
-
-<img width="1922" height="958" alt="Captura desde 2026-11-25 18-51-38" src="https://github.com/user-attachments/assets/f645eb5b-7f9c-4128-89bd-e0e6ba888e5f" />
-
+* **`dsmon_core.py`** — Pure Python stdlib core (`/proc` and `/sys`, no GTK). Includes `SystemStats`, `CsvRecorder` (`.csv.gz` compression and automatic retention), and `load_settings()`.
+* **`dsmon.py`** — Unified entry point:
+  * No flags: launches the **GTK3** desktop widget.
+  * `--headless`: runs the continuous recorder for headless servers.
+  * `--snapshot [--json]`: prints a single system reading (ideal for scripts or agents).
+  * `--report`: builds the HTML report from CSV / CSV.gz logs.
+* **`dsmon_analyzer.py`** — On-demand analyzer (`0 MB` idle). Reads `.csv` and `.csv.gz`, correlates `journalctl` errors/warnings, and outputs a self-contained HTML report with tabs (*CPU & Kernel*, *Memory & Swap*, *Disk I/O & Network*, *GPU*, *Processes & Logs*), **browser-side CSV/GZ import**, **Return to local**, and **PDF export** (`@media print`).
 
 ---
 
-## Instalación en Servidor *Headless* (`systemd`)
+## Captured Metrics
 
-Pensado para que el sysadmin elija su propio filesystem de logs (ej. `/mnt/nmon`, `/var/log/dsmon`) sin depender de `cron` ni `logrotate`:
+* **CPU & Kernel:** Total CPU, `nmon`-style breakdown (`user`, `sys`, `iowait`, `steal` for VMs), **multi-socket** temperatures (`/sys/class/thermal` + `hwmon` `coretemp`/`k10temp`/`zenpower`), context switches (`ctxt/s`), interrupts (`intr/s`), load average, and `hostname`.
+* **Memory & Swap:** Used/total RAM, Swap, and active paging (`pswpin/s`, `pswpout/s` from `/proc/vmstat`).
+* **Disk:** Configured mount usage (gracefully degrades if a mount is missing) + real physical I/O throughput (`disk_read_kbps`, `disk_write_kbps`, `disk_iops` from `/proc/diskstats`, filtering out partitions and `loop` devices).
+* **Network:** `RX` / `TX` rates (`/proc/net/dev`), excluding by default (`--iface auto`) loopback, virtual bridges (`docker*`, `veth*`, `br-*`, `virbr*`), bonding slaves (`bond*`/`team*`), and VLAN subinterfaces to prevent double counting.
+* **Processes:** Top CPU and Top RAM by reading `/proc/<pid>/stat` without spawning subprocesses.
+* **Multi-GPU (NVIDIA and AMD, including mixed setups):**
+  * NVIDIA via `nvidia-smi` (multi-GPU aware, handles `[N/A]` fields).
+  * AMD via `/sys/class/drm/card*/device` (`amdgpu`, no external dependencies).
+  * Respects per-device `D3cold` runtime suspend so sleeping GPUs are not woken up.
+* **Battery (laptops):** Status and charge percentage (`/sys/class/power_supply`).
+
+### Screenshots (Qwen3.5-9B Benchmark)
+
+<img width="1922" height="1000" alt="Screenshot 2026-11-25 18-54-14" src="https://github.com/user-attachments/assets/c46ad83b-5af5-4a56-bb91-3911a159591b" />
+
+<img width="1922" height="958" alt="Screenshot 2026-11-25 18-51-38" src="https://github.com/user-attachments/assets/f645eb5b-7f9c-4128-89bd-e0e6ba888e5f" />
+
+---
+
+## Headless Server Installation (`systemd`)
+
+Designed so sysadmins can choose their own log filesystem (e.g. `/mnt/nmon`, `/var/log/dsmon`) without relying on `cron` or `logrotate`:
 
 ```bash
 sudo ./install-server.sh --log-dir /mnt/nmon/logs --report-dir /mnt/nmon/reports --interval 5
 sudo systemctl enable --now dsmon.service
 ```
 
-Qué configura `install-server.sh`:
-* Crea el usuario y grupo de sistema sin privilegios `dsmon` (personalizable con `--user`, rechaza `root`).
-* Instala en `/opt/dsmon` y enlaza `/usr/local/bin/dsmon`.
-* Crea `/etc/dsmon/dsmon.conf` (ver [dsmon.conf.example](dsmon.conf.example)).
-* Instala `/etc/systemd/system/dsmon.service` con *hardening* (`NoNewPrivileges=yes`, `PrivateTmp=yes`, `ProtectSystem=strict`, `CapabilityBoundingSet=`, `MemoryDenyWriteExecute=yes`, `SystemCallFilter=@system-service`, `ReadWritePaths` acotado a `$LOG_DIR`).
+What `install-server.sh` configures:
+* Creates an unprivileged `dsmon` system user and group (customizable via `--user`, rejects `root`).
+* Installs into `/opt/dsmon` and symlinks `/usr/local/bin/dsmon`.
+* Creates `/etc/dsmon/dsmon.conf` (see [dsmon.conf.example](dsmon.conf.example)).
+* Installs `/etc/systemd/system/dsmon.service` with systemd hardening (`NoNewPrivileges=yes`, `PrivateTmp=yes`, `ProtectSystem=strict`, `CapabilityBoundingSet=`, `MemoryDenyWriteExecute=yes`, `SystemCallFilter=@system-service`, and `ReadWritePaths` scoped to `$LOG_DIR`).
 
 ---
 
-## Instalación en Escritorio (GTK3)
+## Desktop Installation (GTK3)
 
-Requisitos: Python 3 y `python3-gi` (incluido por defecto en Ubuntu / GNOME).
+Requirements: Python 3 and `python3-gi` (included by default on Ubuntu / GNOME).
 
 ```bash
 chmod +x install.sh
 ./install.sh
 ```
 
-Para iniciarlo sin reiniciar sesión:
+To start it without logging out:
 
 ```bash
 python3 ~/.local/bin/dsmon-widget.py &
 ```
 
-Desinstalación: `./uninstall.sh`
+Uninstall: `./uninstall.sh`
 
 ---
 
-## Uso CLI y Configuración
+## CLI Usage & Configuration
 
-### Precedencia de configuración
-1. Flags CLI (`--log-dir`, `--report-dir`, `--interval`, `--mount`, `--iface`, `--flush-every`, `--retention-days`, `--compress-after-days`, `--metrics-port`, `--metrics-bind`, `--days`, `--config`)
-2. Variables de entorno (`DSMON_LOG_DIR`, `DSMON_REPORT_DIR`, `DSMON_INTERVAL`, `DSMON_MOUNT`, `DSMON_NET_IFACE`, `DSMON_FLUSH_EVERY`, `DSMON_RETENTION_DAYS`, `DSMON_COMPRESS_AFTER_DAYS`, `DSMON_METRICS_PORT`, `DSMON_METRICS_BIND`)
-3. Archivo INI: `~/.config/dsmon/dsmon.conf` o `/etc/dsmon/dsmon.conf`
-4. Valores por defecto (`~/dsmon/logs`, `~/dsmon/reports`, `5s`, retención `30` días, compresión tras `1` día)
+### Configuration Precedence
+1. CLI flags (`--log-dir`, `--report-dir`, `--interval`, `--mount`, `--iface`, `--flush-every`, `--retention-days`, `--compress-after-days`, `--metrics-port`, `--metrics-bind`, `--days`, `--config`)
+2. Environment variables (`DSMON_LOG_DIR`, `DSMON_REPORT_DIR`, `DSMON_INTERVAL`, `DSMON_MOUNT`, `DSMON_NET_IFACE`, `DSMON_FLUSH_EVERY`, `DSMON_RETENTION_DAYS`, `DSMON_COMPRESS_AFTER_DAYS`, `DSMON_METRICS_PORT`, `DSMON_METRICS_BIND`)
+3. INI file: `~/.config/dsmon/dsmon.conf` or `/etc/dsmon/dsmon.conf`
+4. Defaults (`~/dsmon/logs`, `~/dsmon/reports`, `5s` interval, `30`-day retention, compression after `1` day)
 
-### Comandos rápidos
+### Quick Commands
 
 ```bash
-# Snapshot instantáneo en JSON (incluye array multi-GPU y multi-socket)
+# Instant JSON snapshot (includes multi-GPU and multi-socket arrays)
 dsmon --snapshot --json
 
-# Grabador headless manual (opcionalmente exponiendo /metrics para Prometheus)
+# Manual headless recorder (optionally exposing /metrics for Prometheus)
 dsmon --headless --interval 5 --log-dir /var/log/dsmon --iface auto --metrics-port 9109
 
-# Generar reporte HTML (últimos 7 días por defecto, --days 0 para todos)
+# Generate HTML report (last 7 days by default, --days 0 for all)
 dsmon --report --log-dir /var/log/dsmon --report-dir /var/log/dsmon/reports
 ```
 
 ---
 
-## Seguridad y Tests
+## Security & Tests
 
-* Sanitización contra *CSV formula injection* (`=`, `+`, `-`, `@`, `\t`, `\r`).
-* Escritura atómica con `tempfile.NamedTemporaryFile` + `os.replace` y rechazo de *symlinks* al rotar logs.
-* Resolución de binarios externos (`nvidia-smi`, `journalctl`, `xdg-open`) restringida a rutas confiables (`/usr/bin:/bin:/usr/local/bin`).
-* Tests unitarios + CI en `.github/workflows/ci.yml`:
+* Sanitization against CSV formula injection (`=`, `+`, `-`, `@`, `\t`, `\r`).
+* Atomic writes via `tempfile.NamedTemporaryFile` + `os.replace`, rejecting symlinks on log rotation.
+* External binary resolution (`nvidia-smi`, `journalctl`, `xdg-open`) restricted to trusted paths (`/usr/bin:/bin:/usr/local/bin`).
+* Unit tests + CI in `.github/workflows/ci.yml`:
 
 ```bash
 python3 -m unittest discover -s tests -v
@@ -119,5 +122,6 @@ python3 -m unittest discover -s tests -v
 
 ## Roadmap
 
-* [x] Endpoint opcional `--metrics-port` en formato Prometheus (`/metrics`) usando `http.server` de stdlib para scraping directo desde Prometheus / Grafana.
-* [ ] Soporte para múltiples puntos de montaje configurables.
+* [x] Optional `--metrics-port` endpoint in Prometheus format (`/metrics`) using stdlib `http.server` for direct Prometheus / Grafana scraping.
+* [ ] Support for multiple configurable mount points.
+* [ ] Multi-language support (`en` / `es`) for HTML reports, CLI, and GTK3 widget.
