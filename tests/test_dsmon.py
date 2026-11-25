@@ -276,7 +276,10 @@ class TestCoreAndCli(unittest.TestCase):
             with open(os.path.join(amd0, "mem_info_vram_total"), "w", encoding="utf-8") as f:
                 f.write(str(8192 * 1024 * 1024))
 
-            with mock.patch("subprocess.check_output", return_value="80, 68, 12000, 24576\n"):
+            with (
+                mock.patch("shutil.which", return_value="/usr/bin/nvidia-smi"),
+                mock.patch("subprocess.check_output", return_value="80, 68, 12000, 24576\n"),
+            ):
                 gpus, has_nv = dsmon_core.SystemStats.gpu_list(
                     pci_dir=os.path.join(tmp, "pci"),
                     drm_dir=os.path.join(tmp, "drm"),
