@@ -36,6 +36,13 @@ Monitor de recursos para **Linux** de **cero dependencias externas en el núcleo
   * Respeta suspensión `D3cold` por dispositivo para no despertar GPUs en reposo.
 * **Batería (laptops):** Estado y porcentaje (`/sys/class/power_supply`).
 
+### Capturas (Benchmark Qwen3.5-9B)).
+
+<img width="1922" height="1000" alt="Captura desde 2026-11-25 18-54-14" src="https://github.com/user-attachments/assets/c46ad83b-5af5-4a56-bb91-3911a159591b" />
+
+<img width="1922" height="958" alt="Captura desde 2026-11-25 18-51-38" src="https://github.com/user-attachments/assets/f645eb5b-7f9c-4128-89bd-e0e6ba888e5f" />
+
+
 ---
 
 ## Instalación en Servidor *Headless* (`systemd`)
