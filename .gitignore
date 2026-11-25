@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.log
+*.csv
+*.csv.gz
+dsmon/
+.DS_Store
