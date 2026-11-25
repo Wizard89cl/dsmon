@@ -1,0 +1,31 @@
+# DSMon server / desktop configuration
+# Precedence: CLI flags > DSMON_* env vars > ~/.config/dsmon/dsmon.conf > /etc/dsmon/dsmon.conf
+
+[dsmon]
+# Dedicated filesystem or directory for daily CSV logs (e.g. /var/log/dsmon or /mnt/nmon/logs)
+log_dir = /var/log/dsmon
+
+# Output directory for generated HTML reports
+report_dir = /var/log/dsmon/reports
+
+# Sampling interval in seconds (headless mode)
+interval = 5
+
+# Root or primary mount point to monitor disk usage
+mount = /
+
+# Network interface to monitor ("auto" excludes virtual bridges, bond slaves and VLAN subifaces)
+net_iface = auto
+
+# Number of samples buffered before flushing to disk
+flush_every = 15
+
+# Compress CSVs older than N days to .csv.gz (0 = disable)
+compress_after_days = 1
+
+# Delete logs older than N days (0 = keep forever)
+retention_days = 30
+
+# Optional Prometheus /metrics HTTP port in --headless mode (0 = disabled)
+metrics_port = 0
+metrics_bind = 127.0.0.1
