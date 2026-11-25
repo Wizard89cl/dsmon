@@ -66,6 +66,7 @@ class TestAnalyzerSafety(unittest.TestCase):
                     }]
                 }
                 out = dsmon_analyzer.build_report(all_data, "2026-11-18")
+                self.assertEqual(os.stat(out).st_mode & 0o777, 0o644)
                 with open(out, encoding="utf-8") as f:
                     html = f.read()
             finally:

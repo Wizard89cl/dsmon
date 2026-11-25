@@ -1030,6 +1030,7 @@ def build_report(
         ) as f:
             tmp_path = f.name
             f.write(html)
+        os.chmod(tmp_path, 0o644)
         os.replace(tmp_path, out_path)
     except OSError:
         if tmp_path and os.path.exists(tmp_path):
